@@ -1,0 +1,176 @@
+#include <stdio.h>
+
+// Maximum number of processes
+#define MAX_PROCESS 10
+
+// Structure to store process information
+struct Process {
+    int pid;                // Process ID
+    int arrival_time;       // Arrival Time
+    int burst_time;         // Burst Time
+    int priority;           // Priority
+    int time_left;          // Remaining execution time
+    int quantum;            // Time quantum for Round Robin
+};
+
+// Two queues for scheduling
+struct Queue {
+    int front, rear, size;
+    struct Process processes[MAX_PROCESS];
+};
+
+// Function to create an empty queue
+void createQueue(struct Queue* queue) {
+    queue->front = queue->rear = -1;
+    queue->size = 0;
+}
+
+// Function to check if the queue is empty
+int isEmpty(struct Queue* queue) {
+    return queue->size == 0;
+}
+
+// Function to check if the queue is full
+int isFull(struct Queue* queue) {
+    return queue->size == MAX_PROCESS;
+}
+
+// Function to add a process to the queue
+void enqueue(struct Queue* queue, struct Process process) {
+    if (isFull(queue)) {
+        printf("Queue is full\n");
+        return;
+    }
+    if (isEmpty(queue)) {
+        queue->front = queue->rear = 0;
+    } else {
+        queue->rear = (queue->rear + 1) % MAX_PROCESS;
+    }
+    queue->processes[queue->rear] = process;
+    queue->size++;
+}
+
+// Function to remove a process from the queue
+struct Process dequeue(struct Queue* queue) {
+    if (isEmpty(queue)) {
+        printf("Queue is empty\n");
+        struct Process empty_process = {-1, 0, 0, 0, 0, 0};
+        return empty_process;
+    }
+    struct Process process = queue->processes[queue->front];
+    if (queue->front == queue->rear) {
+        queue->front = queue->rear = -1;
+    } else {
+        queue->front = (queue->front + 1) % MAX_PROCESS;
+    }
+    queue->size--;
+    return process;
+}
+
+// Function to sort the processes based on their priority
+void sortProcesses(struct Process processes[], int n) {
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = i + 1; j < n; j++) {
+            if (processes[i].priority < processes[j].priority) {
+                struct Process temp = processes[i];
+                processes[i] = processes[j];
+                processes[j] = temp;
+            }
+        }
+    }
+}
+
+int main() {
+    // Read the number of processes
+    int n;
+    printf("Enter the number of processes: ");
+    scanf("%d", &n);
+
+    // Read the processes information
+    struct Process processes[MAX_PROCESS];
+    for (int i = 0; i < n; i++) {
+        printf("Enter the arrival time, burst time, and priority of process %d: ", i + 1);
+        scanf("%d%d%d", &processes[i].arrival_time, &processes[i].burst_time, &processes[i].priority);
+        processes[i].pid = i + 1;
+        processes[i].time_left = processes[i].burst_time;
+        processes[i].quantum = 2;
+    }
+
+    // Sort the processes based on their priority
+    sortProcesses(processes, n);
+
+    // Create two queues for scheduling
+    struct Queue queue1, queue2;
+    createQueue(&queue1);
+    createQueue(&queue2);
+
+// Initialize the current time and the index of the current process
+int current_time = 0;
+int current_process_index = 0;
+
+// Execute the processes
+while (1) {
+    // Check if there are any processes in queue 1
+    if (!isEmpty(&queue1)) {
+        // Get the next process from queue 1
+        struct Process current_process = dequeue(&queue1);
+        current_process_index = current_process.pid - 1;
+
+        // Calculate the time for which the process will execute
+        int time_slice = current_process.time_left > current_process.quantum ? current_process.quantum : current_process.time_left;
+        current_process.time_left -= time_slice;
+        current_time += time_slice;
+
+        // Print the execution information
+        printf("Process %d executed for %d units from time %d to %d\n", current_process.pid, time_slice, current_time - time_slice, current_time);
+
+        // Check if the process has completed its execution
+        if (current_process.time_left == 0) {
+            printf("Process %d completed its execution at time %d\n", current_process.pid, current_time);
+        } else {
+            // Add the process back to queue 1 with its updated priority
+            current_process.priority--;
+            enqueue(&queue1, current_process);
+        }
+
+        // Check if there are any higher priority processes in queue 1
+        while (current_process_index < n - 1 && processes[current_process_index + 1].arrival_time <= current_time) {
+            current_process_index++;
+            enqueue(&queue1, processes[current_process_index]);
+            printf("Process %d added to queue 1 at time %d with priority %d\n", processes[current_process_index].pid, current_time, processes[current_process_index].priority);
+        }
+    } else if (!isEmpty(&queue2)) {
+        // Get the next process from queue 2
+        struct Process current_process = dequeue(&queue2);
+        current_process_index = current_process.pid - 1;
+
+        // Calculate the time for which the process will execute
+        int time_slice = current_process.time_left > current_process.quantum ? current_process.quantum : current_process.time_left;
+        current_process.time_left -= time_slice;
+        current_time += time_slice;
+
+        // Print the execution information
+        printf("Process %d executed for %d units from time %d to %d\n", current_process.pid, time_slice, current_time - time_slice, current_time);
+
+        // Check if the process has completed its execution
+        if (current_process.time_left == 0) {
+            printf("Process %d completed its execution at time %d\n", current_process.pid, current_time);
+        } else {
+            // Add the process back to queue 2
+            enqueue(&queue2, current_process);
+        }
+
+        // Check if there are any processes in queue 1 with higher priority
+        while (current_process_index < n - 1 && processes[current_process_index + 1].arrival_time <= current_time && processes[current_process_index + 1].priority >= queue1.processes[queue1.front].priority) {
+            current_process_index++;
+            enqueue(&queue1, processes[current_process_index]);
+            printf("Process %d added to queue 1 at time %d with priority %d\n", processes[current_process_index].pid, current_time, processes[current_process_index].priority);
+        }
+    } else {
+        // All processes have completed their execution
+        break;
+    }
+}
+
+return 0;
+}
